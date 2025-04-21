@@ -1,0 +1,13 @@
+services:
+  - type: worker
+    name: tamusa-job-checker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python job_checker.py
+    envVars:
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_PASS
+        sync: false
+      - key: TO_EMAIL
+        sync: false
