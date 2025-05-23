@@ -1,0 +1,4 @@
+venv/
+job_checker.log
+seen_jobs.json
+*.save

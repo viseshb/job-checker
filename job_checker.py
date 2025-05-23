@@ -2,21 +2,27 @@ import smtplib
 import json
 import time
 import sys
+import logging
 from email.mime.text import MIMEText
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
-# === Email Configuration ===
+# === Configuration ===
 GMAIL_USER = "visesh66@gmail.com"
-GMAIL_PASS = "vdovcubqlesknzlo"  # Use Gmail App Password
+GMAIL_PASS = "vdovcubqlesknzlo"  # Gmail App Password
 TO_EMAIL = "visesh66@gmail.com"
-
-# === Job Site URL ===
 URL = "https://tamus.wd1.myworkdayjobs.com/en-US/TAMUSA_External?workerSubType=0e1cd8ed350201da3af87057e74b7c04"
 JOB_CACHE_FILE = "seen_jobs.json"
 
-# === Send Email ===
+# === Logging Setup ===
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+# === Email Alert ===
 def send_email(subject, body):
     msg = MIMEText(body)
     msg["Subject"] = subject
@@ -27,11 +33,11 @@ def send_email(subject, body):
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASS)
             server.send_message(msg)
-        print("✅ Email sent successfully!")
+        logging.info("✅ Email sent successfully!")
     except Exception as e:
-        print("❌ Failed to send email:", str(e))
+        logging.error("❌ Failed to send email: %s", str(e))
 
-# === Fetch Job Listings with Selenium ===
+# === Job Scraper ===
 def fetch_jobs():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -40,21 +46,21 @@ def fetch_jobs():
 
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(URL)
-    time.sleep(5)  # Allow JS to load jobs
+    time.sleep(5)
 
     jobs = []
     links = driver.find_elements(By.XPATH, '//a[contains(@href, "/en-US/TAMUSA_External/job/")]')
 
     for link in links:
         title = link.text.strip()
-        href = link.get_attribute("href")
-        if title and (title, href) not in jobs:
+        href = link.get_attribute("href")  # ✅ correct method
+        if title and href and (title, href) not in jobs:
             jobs.append((title, href))
 
     driver.quit()
     return jobs
 
-# === Load Previous Jobs from File ===
+# === Persistence ===
 def load_previous_jobs():
     try:
         with open(JOB_CACHE_FILE, "r") as f:
@@ -62,43 +68,45 @@ def load_previous_jobs():
     except FileNotFoundError:
         return []
 
-# === Save Current Jobs to File ===
 def save_jobs(jobs):
     with open(JOB_CACHE_FILE, "w") as f:
-        json.dump(jobs, f)
+        json.dump([{"title": title, "url": url} for title, url in jobs], f)
 
-# === Print All Jobs ===
+# === Manual View Mode ===
 def print_all_jobs():
     jobs = fetch_jobs()
-    print(f"📋 Found {len(jobs)} current job(s):\n")
     for i, (title, link) in enumerate(jobs, 1):
         print(f"{i}. {title}\n   {link}\n")
 
-# === Monitor and Alert New Jobs ===
+# === Monitoring + Notification ===
 def monitor_jobs():
+    logging.info("�� Checking for jobs...")
     current_jobs = fetch_jobs()
-    print(f"\n🧾 CURRENT JOB LISTINGS ({len(current_jobs)}):")
-    for title, link in current_jobs:
-        print(f"- {title}\n  {link}\n")
 
-    current_titles = [title for title, _ in current_jobs]
-    seen_titles = load_previous_jobs()
+    seen = load_previous_jobs()
+    seen_titles = {job["title"] for job in seen}  # ✅ fixed
 
     new_jobs = [(title, link) for title, link in current_jobs if title not in seen_titles]
 
     if new_jobs:
-        print(f"🔔 {len(new_jobs)} new job(s) found!")
-        message_body = "\n\n".join(f"{title}\n{link}" for title, link in new_jobs)
-        send_email("📢 New Job Posted at TAMUSA!", message_body)
-        save_jobs(current_titles)
+        logging.info("🔔 %d new job(s) found!", len(new_jobs))
+        body = "\n\n".join(f"{title}\n{link}" for title, link in new_jobs)
+        send_email("📢 New TAMUSA Job(s) Posted", body)
+        save_jobs(current_jobs)  # ✅ store new state
     else:
-        print("No new jobs yet.")
+        logging.info("No new jobs.")
 
 # === Entry Point ===
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--print":
         print_all_jobs()
     else:
-        while True:
-            monitor_jobs()
-            time.sleep(300)  # every 5 minutes
+        logging.info("🚀 Job Checker Service started.")
+        try:
+            while True:
+                monitor_jobs()
+                time.sleep(300)  # every 5 minutes
+        except KeyboardInterrupt:
+            logging.info("🛑 Job Checker stopped by user.")
+        except Exception as e:
+            logging.exception("❌ Uncaught error occurred:")
