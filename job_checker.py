@@ -10,7 +10,7 @@ from selenium.webdriver.common.by import By
 
 # === Configuration ===
 GMAIL_USER = "visesh66@gmail.com"
-GMAIL_PASS = "vdovcubqlesknzlo"  # Gmail App Password
+GMAIL_PASS = "add your password"  # Gmail App Password
 TO_EMAIL = "visesh66@gmail.com"
 URL = "https://tamus.wd1.myworkdayjobs.com/en-US/TAMUSA_External?workerSubType=0e1cd8ed350201da3af87057e74b7c04"
 JOB_CACHE_FILE = "seen_jobs.json"
